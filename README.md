@@ -1,4 +1,5 @@
-Lakshita - Opeining the UDP sockets
-Aaron - Setting up the forwarding table
-Preetam - Router protocol
-Karan - Bellmond ford algorithm 
+# Task list 
+Lakshita - Opeining the UDP sockets <br />
+Aaron - Setting up the forwarding table <br />
+Preetam - Router protocol <br />
+Karan - Bellmond ford algorithm <br />
