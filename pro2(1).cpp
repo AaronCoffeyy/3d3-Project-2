@@ -12,87 +12,468 @@
 #include <stdlib.h>
 #include <iostream>
 #include <pthread.h>
-#include <string.h>
+#include <string>
 #include <vector>
+#include <sstream>
+#include <iomanip>
+#include <chrono>
+#include <thread>
+
 
 #define routers_num 8
+
+using namespace std;
+
 //void *router_connection(void *threadID);
 static int clientSockfd;
 int numBytes;
+
+//Neighbour struct with holds the port number, hop distance and if they are connected
+struct Neighbour {
+	int port;
+	int hop_distance;
+	bool connected;
+	string port_name;
+	int via_port;
+	string via_port_name;    
+	Neighbour *next_node;
+	int total_dist;
+};
+
 int routersock = socket(AF_INET,  SOCK_DGRAM, 0);
  struct routerData {     //MY ROUTER'S data
-    char src;
+    string src;
     //char src_ip[16];
     int port;
-   
+	Neighbour *head;
 }router1;
+
 std::string url;
 
+void Neighbour_setup(routerData *host, string source, string dest, string port_num, string weight) {
+
+	Neighbour *temp;
+
+	//Setting up new neighbour
+	Neighbour *New_Neighbour = new Neighbour;
+	New_Neighbour->port_name = dest;
+	New_Neighbour->next_node = NULL;
+	New_Neighbour->port = stoi(port_num);
+	New_Neighbour->hop_distance = stoi(weight);
+	New_Neighbour->total_dist = stoi(weight);
+	New_Neighbour->via_port = stoi(port_num);
+	New_Neighbour->via_port_name = dest;
+
+	//Checks to see if this is first neighbour
+	//If so sets it as start of the list
+	if (host->head == NULL) {
+		host->head = New_Neighbour;
+	}
+	else {
+		//If it isnt the first neighbour it goes through the list until it finds the 
+		//end then adds it to the end
+
+		temp = host->head;
+
+		while (temp->next_node != NULL) {
+			temp = temp->next_node;
+		}
+
+		temp->next_node = New_Neighbour;
+	}
+}
+
+//Setting up connection from file
+void Initial_forwarding_table(routerData *init_router) {
+
+	ifstream nodefile("Node set up.txt");
+
+	char temp;
+	int pos = 0;
+	ostringstream char_to_string;
+	bool next = false;
+	string source,neighbour, port_num, weight;
+
+	//Reads in from file until EOF
+	while (nodefile >> temp) {
+
+		string temp1;
+
+		//When a coma is found the stringstream will be outputted to the corrseponding string and the 
+		//reset
+		if (temp == ',') {
+			next = true;
+		}
+
+		if (next == true) {
+
+			next = false;
+			temp1 = char_to_string.str();
+
+			//Switch function to swap between what the stringstream will be let equal to
+			switch (pos) {
+			case 0:
+				source = temp1;
+				pos = 1;
+				goto switch_end;
+			case 1:
+				neighbour = temp1;
+				pos = 2;
+				goto switch_end;
+			case 2:
+				port_num = temp1;
+				pos = 3;
+				goto switch_end;
+			case 3:
+				weight = temp1;
+
+				//If the source read in from file matche our router we set up the neighbour 
+				if (init_router->src == source) {
+					Neighbour_setup(init_router, source, neighbour, port_num, weight);
+				}
+
+				pos = 0;
+				goto switch_end;
+			}
+			break;
+		switch_end:
+			char_to_string.str("");
+		}
+		else {
+			char_to_string << temp;
+		}
+	}
+}
+
+//Prints out neighbour of the router
+void print_neighbours(routerData print_router) {
+
+	cout << endl;
+	cout << "Router " << print_router.src << endl;
+
+	cout << setw(15) << left << "Destination";
+	cout << setw(5) << left << "Cost";
+	cout << setw(20) << left << "Outgoing UDP Port";
+	cout << setw(20) << left << "Destination UDP port" << endl;
+	for (Neighbour *pointer = print_router.head; pointer != NULL; pointer = pointer->next_node) {
+		cout << setw(15) << left << pointer->port_name;
+		cout << setw(5) << left << pointer->total_dist;
+		cout << left << pointer->via_port << " (Node " << pointer->via_port_name << ")" << setw(6) << " ";
+		cout << left << pointer->port << left<< " (Node " << pointer->port_name << ")" << endl;
+	}
+}
+
+void Reading_in_forwardingtable(char table[]) {
+
+	int pos = 0;
+	ostringstream char_to_string;
+	string temp1;
+
+	string port_name,source,source_port;
+	string port_num,hop_distance,total_dist;
+
+	int i = 0;
+	
+	while (table[i] != '\0' ) {
+		
+		if (table[i] == ',') {
+			temp1 = char_to_string.str();
+			switch (pos) {
+			case 0:
+				source = temp1;
+				pos = 1;
+				goto switch_end;
+			case 1:
+				source_port = temp1;
+				pos = 2;
+				goto switch_end;
+			case 2:
+				port_name = temp1;
+				pos = 3;
+				goto switch_end;
+			case 3:
+				port_num = temp1;
+				pos = 4;
+				goto switch_end;
+			case 4:
+				hop_distance = temp1;
+				pos = 5;
+				goto switch_end;
+			case 5:
+				total_dist = temp1;				
+				
+				if (port_name != router1.src) {
+
+					Neighbour *temp;
+					bool found = false;
+
+					if (router1.head == NULL) {
+						break;
+					}
+					else {
+						temp = router1.head;
+
+						while (temp->next_node != NULL) {
+							if (temp->port_name == port_name) {
+								found = true;
+							}
+						
+							temp = temp->next_node;
+						}
+
+						if (temp->port_name == port_name) {
+							found = true;
+						}
+
+						if (!found) {
+							//Setting up new neighbour via another node
+							Neighbour *New_Neighbour = new Neighbour;
+							New_Neighbour->port_name = port_name;
+							New_Neighbour->next_node = NULL;
+							New_Neighbour->port = stoi(port_num);
+							New_Neighbour->hop_distance = stoi(hop_distance);
+							New_Neighbour->via_port = stoi(source_port);
+							New_Neighbour->via_port_name = source;
+
+							//getting total cost to get to the node
+							New_Neighbour->total_dist = stoi(total_dist) + New_Neighbour->hop_distance;
+
+							temp->next_node = New_Neighbour;
+						}
+
+					}
+				}			
+				
+				pos = 0;
+				goto switch_end;
+			}
+		switch_end:
+			char_to_string.str("");
+		}
+		else {
+			char_to_string << table[i];
+		}
+		
+		i++;
+	}
+}
+
+//Enter 1. router name , 2. router port, 3. URL
 int main(int argc,const char* argv[]){
-url=argv[3];
-int i=1;
-pthread_t connection_thread;
- if(argc<3)
-    {
-        std::cout<<"Please enter all details\n";
-        exit(0);
-    }
-std::cout<<"hello";
-router1.src = argv[1][0];
-router1.port = atoi(argv[2]);
-std::cout<<"hello";
- //pthread_create(&connection_thread, NULL, router_connection, NULL);
- //pthread_cancel(connection_thread);
-//std::cout<<"hello";
-//pthread_join(connection_thread, NULL);
-std::cout<<"\n\tConnection: Connection thread is running...";
- // int threadNum = (intptr_t) threadID;
-int routerSock;
-struct sockaddr_in routerAddr;
+
+	pthread_t connection_thread;
+	
+	if(argc<3)
+	{
+		std::cout<<"Please enter all details\n";
+		exit(0);
+	}
+
+	router1.src = argv[1][0];
+	router1.port = atoi(argv[2]);
+	url = argv[3];								
+
+	std::cout << "Router has been set up ";
+
+	std::cout<<"\n\tConnection: Connection thread is running...";
+	 // int threadNum = (intptr_t) threadID;
+	int routerSock;
+	struct sockaddr_in routerAddr;
     struct sockaddr_storage senderAddr;
     char sendBuf[256], recvBuf[256];
-int recvLen;
+	int recvLen;
 
     socklen_t addrLen = sizeof(senderAddr);
 
-if((routerSock = socket(AF_INET, SOCK_DGRAM, 0))<0)
-        //std::cout<<"\n\tConnection: Thread number "<<threadNum<<" couldn't create socket. :(";
-memset((char *)&routerAddr, 0, sizeof(routerAddr));         
+	// create a socket using UDP IP
+	if ((routerSock = socket(AF_INET, SOCK_DGRAM, 0)) < 0);
+
+	// bind address to socket
+	memset((char *)&routerAddr, 0, sizeof(routerAddr));         
     routerAddr.sin_family = AF_INET;
     routerAddr.sin_port = htons(router1.port);
     routerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-
+	
     if(bind(routerSock, (struct sockaddr *) &routerAddr, sizeof(routerAddr)) < 0)
     {
         std::cerr<<"\n\tConnection: Router binding failed. Killing thread...";
         exit(1);
     }
 
-for(;;) {
-        recvLen = recvfrom(routerSock, recvBuf, 256, 0, (struct sockaddr *) &senderAddr, &addrLen);
-        std::cout<<"\n\tConnection: Received "<<recvLen<<" bytes.";
-        if(recvLen > 0) {
-            recvBuf[recvLen] = 0;
-            //packetParser(recvBuf);
- char sendBuf[]="hello";
-//int sendlen=strlen(sendBuf);
- int sendSock = socket(AF_INET, SOCK_DGRAM, 0);
+	//No accepting or listening on UDP connection
+	//Setting up neighbours
+	router1.head = NULL;
+	Initial_forwarding_table(&router1);
+	print_neighbours(router1);
 
- sockaddr_in addrSend = {};    //zero-int, sin_port is 0 which picks a random port for bind
-    addrSend.sin_family = AF_INET;
-    addrSend.sin_port = htons(atoi(url.c_str()));
-    addrSend.sin_addr.s_addr = inet_addr("127.0.0.1"); 
- bind(sendSock, (struct sockaddr *) &addrSend, sizeof(addrSend));     //Not checking failure for now..
-    //    cout<<"\n\t\t BIND FAIL";    
-    if((numBytes=(sendto(sendSock, sendBuf, 20, 0, (struct sockaddr *) &addrSend, 20))) == -1) {
-        std::cout<<"\n\t\tSender: Couldn't send. :(";
-      //  return;
+	//A check to see if the forwarding table has stabilized
+	bool stabilized = false;
+
+	//Loop that will send and receive forwarding tabel until it stabilizes
+
+	//Setting up delay for displaying the forwarding table
+	using namespace std::this_thread;
+	using namespace std::chrono;
+	
+	int temper = 0;
+	while (!stabilized) {
+		
+		Neighbour *temp;
+
+		if (router1.head == NULL) {
+			cout << "No neighbours found" << endl;
+			break;
+		}
+		else {
+			temp = router1.head;
+
+			while (temp != NULL) {
+
+				//Setting next port
+				int temp_port = temp->port;
+				
+				//Sending table
+				cout << "Sending table " << endl;
+
+				//making char array to send 
+				ostringstream send_array;
+				
+				Neighbour *forwadring_table_send = router1.head;
+
+				//Source, soruce port, neighbour name, neighbour port,hop dist,total dist
+				while (forwadring_table_send != NULL) {
+					send_array << router1.src << "," << router1.port << "," << forwadring_table_send->port_name << "," << forwadring_table_send->port << "," << temp->hop_distance << ",";
+					send_array << forwadring_table_send->total_dist << ",";
+					forwadring_table_send = forwadring_table_send->next_node;
+				}
+				string string_to_char = send_array.str();
+		
+				char *sending_array = new char[string_to_char.length() + 1];
+				strcpy(sending_array,string_to_char.c_str());
+				//Set up socket to send the forwading table on
+				int Fowardtable_sock = socket(AF_INET, SOCK_DGRAM, 0);
+
+				//Creates a temporary socket to forwarding table to
+				sockaddr_in addrSend = {};
+				addrSend.sin_family = AF_INET;
+				addrSend.sin_port = htons(temp_port);
+				addrSend.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+				//Binding temp socket
+				bind(Fowardtable_sock, (struct sockaddr *) &addrSend, sizeof(addrSend));
+
+				if ((numBytes = (sendto(Fowardtable_sock, sending_array, 400, 0, (struct sockaddr *) &addrSend, 20))) == -1) {
+					std::cout << "\n\t\tSender: Couldn't send table\n\n";
+				}
+
+				temp = temp->next_node;
+
+				sleep_for(seconds(1));
+
+				close(Fowardtable_sock);
+			}
+		}
+
+	
+		cout << "Waiting to receive" << endl;
+
+		recvLen = recvfrom(routerSock, recvBuf, 256, 0, (struct sockaddr *) &senderAddr, &addrLen);
+
+		std::cout << "\n\tConnection: Received " << recvLen << " bytes.";
+		cout << recvBuf << endl;
+
+		Reading_in_forwardingtable(recvBuf);
+
+		print_neighbours(router1);
+
+		for (int i = 0; i < 100000000;i++) {
+
+		}
+
+		temper++;
+	}
+
+	
+	cout << "Enters loop" << endl;
+	string destination_chosen;
+	int temp_port = 0;
+	//Infinite loop that sends and is open to recieve packets
+	for(;;) {
+
+		cout << "Preping receive" << endl;
+		//Open to receive
+		cout << "Enter dest" << endl;
+		getline(cin, destination_chosen);
+
+		if (destination_chosen == router1.src) {			
+		}
+		else {
+			
+			Neighbour *temp;
+
+			if (router1.head == NULL) {
+				return 0;
+			}
+			else {
+				temp = router1.head;
+
+				while (temp->next_node != NULL) {
+					if (temp->port_name == destination_chosen) {
+						temp_port = temp->port;
+					}
+					temp = temp->next_node;
+				}
+			}
+
+			char sendBuf[] = "hello";
+			int sendSock = socket(AF_INET, SOCK_DGRAM, 0);
+			//Creates a temporary socket to send packets to
+			sockaddr_in addrSend = {};    //zero-int, sin_port is 0 which picks a random port for bind
+			addrSend.sin_family = AF_INET;
+			addrSend.sin_port = htons(temp_port);
+			addrSend.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+			//Binding temp socket
+			bind(sendSock, (struct sockaddr *) &addrSend, sizeof(addrSend));     //Not checking failure for now..
+			//    cout<<"\n\t\t BIND FAIL";    
+			if ((numBytes = (sendto(sendSock, sendBuf, 20, 0, (struct sockaddr *) &addrSend, 20))) == -1) {
+				std::cout << "\n\t\tSender: Couldn't send. :(";
+				//  return;
+			}
+			//cout<<"\n\t\tSender: Message sent "<<numBytes<<" to "<<destnR->destn<<" on port "
+			  //  << destnR->port <<" using port: "<<sendSock<<"\n"<<"\t\tMESSAGE: "<< sendBuf; 
+			close(sendSock);
+		}
+
+		recvLen = recvfrom(routerSock, recvBuf, 256, 0, (struct sockaddr *) &senderAddr, &addrLen); 
+
+        std::cout<<"\n\tConnection: Received "<<recvLen<<" bytes.";
+		cout << recvBuf << endl;
+        if(recvLen > 0) {
+
+			recvBuf[recvLen] = 0;
+			char sendBuf[]="hello";
+			int sendSock = socket(AF_INET, SOCK_DGRAM, 0);
+
+			//Creates a temporary socket to send packets to
+			sockaddr_in addrSend = {};    //zero-int, sin_port is 0 which picks a random port for bind
+			addrSend.sin_family = AF_INET;
+			addrSend.sin_port = htons(atoi(url.c_str()));
+			addrSend.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+	
+			//Binding temp socket
+			bind(sendSock, (struct sockaddr *) &addrSend, sizeof(addrSend));     //Not checking failure for now..
+			//    cout<<"\n\t\t BIND FAIL";    
+			if((numBytes=(sendto(sendSock, sendBuf, 20, 0, (struct sockaddr *) &addrSend, 20))) == -1) {
+				std::cout<<"\n\t\tSender: Couldn't send. :(";
+			  //  return;
+			}
+			//cout<<"\n\t\tSender: Message sent "<<numBytes<<" to "<<destnR->destn<<" on port "
+			  //  << destnR->port <<" using port: "<<sendSock<<"\n"<<"\t\tMESSAGE: "<< sendBuf; 
+			close(sendSock); 
+		}
     }
-    //cout<<"\n\t\tSender: Message sent "<<numBytes<<" to "<<destnR->destn<<" on port "
-      //  << destnR->port <<" using port: "<<sendSock<<"\n"<<"\t\tMESSAGE: "<< sendBuf; 
-    close(sendSock); 
-        }
-    }
+	
     close(routerSock);
 
 
