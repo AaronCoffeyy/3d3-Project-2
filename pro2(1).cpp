@@ -41,12 +41,24 @@ struct Neighbour {
 };
 
 int routersock = socket(AF_INET,  SOCK_DGRAM, 0);
+
  struct routerData {     //MY ROUTER'S data
     string src;
     //char src_ip[16];
     int port;
 	Neighbour *head;
 }router1;
+
+ struct edge {
+	 string starting_node,ending_node;
+	 int weight;
+};
+
+ struct graph {
+	 vector<struct edge*> edges;
+};
+
+ struct graph* graph_of_edges;
 
 std::string url;
 
@@ -81,6 +93,29 @@ void Neighbour_setup(routerData *host, string source, string dest, string port_n
 
 		temp->next_node = New_Neighbour;
 	}
+}
+
+void initial_graph() {
+	graph_of_edges = new graph;
+}
+
+void add_Link(string start,string end, string weight) {
+
+	edge *new_edge = new edge;
+
+	new_edge->starting_node = start;
+	new_edge->ending_node = end;
+	new_edge->weight = stoi(weight);
+
+	graph_of_edges->edges.push_back(new_edge);
+
+	int size = graph_of_edges->edges.size();
+
+	//Need to add in check to see if edge already exists 
+	/*
+	for (int x = 0; x < size; x++) {
+		cout << "edge " << x << " weight " << graph_of_edges->edges[x]->ending_node << endl;
+	}*/
 }
 
 //Setting up connection from file
@@ -127,9 +162,13 @@ void Initial_forwarding_table(routerData *init_router) {
 			case 3:
 				weight = temp1;
 
+				//Add all edges to the grpah for the DV and bellmond ford calculations - shortets path
+				add_Link(source, neighbour, weight);
+
 				//If the source read in from file matche our router we set up the neighbour 
 				if (init_router->src == source) {
 					Neighbour_setup(init_router, source, neighbour, port_num, weight);
+					
 				}
 
 				pos = 0;
@@ -163,6 +202,7 @@ void print_neighbours(routerData print_router) {
 	}
 }
 
+//Edit so it reads in DV not full table - Aaron
 void Reading_in_forwardingtable(char table[]) {
 
 	int pos = 0;
@@ -226,7 +266,7 @@ void Reading_in_forwardingtable(char table[]) {
 						}
 
 						if (!found) {
-							//Setting up new neighbour via another node
+							//Setting up new neighbour via another node when sent a DV
 							Neighbour *New_Neighbour = new Neighbour;
 							New_Neighbour->port_name = port_name;
 							New_Neighbour->next_node = NULL;
@@ -234,9 +274,8 @@ void Reading_in_forwardingtable(char table[]) {
 							New_Neighbour->hop_distance = stoi(hop_distance);
 							New_Neighbour->via_port = stoi(source_port);
 							New_Neighbour->via_port_name = source;
-
-							//getting total cost to get to the node
-							New_Neighbour->total_dist = stoi(total_dist) + New_Neighbour->hop_distance;
+							
+							//New_Neighbour->total_dist = stoi(total_dist) + New_Neighbour->hop_distance;
 
 							temp->next_node = New_Neighbour;
 						}
@@ -262,7 +301,8 @@ void Reading_in_forwardingtable(char table[]) {
 int main(int argc,const char* argv[]){
 
 	pthread_t connection_thread;
-	
+	initial_graph();
+
 	if(argc<3)
 	{
 		std::cout<<"Please enter all details\n";
@@ -314,8 +354,7 @@ int main(int argc,const char* argv[]){
 	//Setting up delay for displaying the forwarding table
 	using namespace std::this_thread;
 	using namespace std::chrono;
-	
-	int temper = 0;
+
 	while (!stabilized) {
 		
 		Neighbour *temp;
@@ -333,23 +372,25 @@ int main(int argc,const char* argv[]){
 				int temp_port = temp->port;
 				
 				//Sending table
-				cout << "Sending table " << endl;
+				cout << "Sending DV " << endl;
 
 				//making char array to send 
 				ostringstream send_array;
 				
 				Neighbour *forwadring_table_send = router1.head;
 
-				//Source, soruce port, neighbour name, neighbour port,hop dist,total dist
+				//Send DV to all neighbours
 				while (forwadring_table_send != NULL) {
-					send_array << router1.src << "," << router1.port << "," << forwadring_table_send->port_name << "," << forwadring_table_send->port << "," << temp->hop_distance << ",";
-					send_array << forwadring_table_send->total_dist << ",";
+					
+					//send_array << ;
 					forwadring_table_send = forwadring_table_send->next_node;
 				}
 				string string_to_char = send_array.str();
 		
+				//Turning the DV into a char array to be sent to neightbours
 				char *sending_array = new char[string_to_char.length() + 1];
 				strcpy(sending_array,string_to_char.c_str());
+
 				//Set up socket to send the forwading table on
 				int Fowardtable_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -382,15 +423,10 @@ int main(int argc,const char* argv[]){
 		std::cout << "\n\tConnection: Received " << recvLen << " bytes.";
 		cout << recvBuf << endl;
 
-		Reading_in_forwardingtable(recvBuf);
+		//Reading_in_forwardingtable(recvBuf);
 
 		print_neighbours(router1);
 
-		for (int i = 0; i < 100000000;i++) {
-
-		}
-
-		temper++;
 	}
 
 	
