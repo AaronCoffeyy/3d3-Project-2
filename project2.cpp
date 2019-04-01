@@ -103,7 +103,7 @@ void initial_graph() {
 	graph_of_edges->edges.resize(0);
 }
 
-void add_Link(string start,string end, string weight) {
+void add_Link(string start,string end, string weight) { 
 
 	edge *new_edge = new edge;
 	struct graph *g;
@@ -116,7 +116,7 @@ int w=stoi(weight);
 
 	char x=start.at(0);
 	char y=end.at(0);
-int flag=0;
+int flag=0;                          //coded by lakshi
 
 	int size = g->edges.size();
 		 if(g->total_number_of_vertices == 0){
@@ -165,7 +165,7 @@ int flag=0;
 	for (int x = 0; x < size; x++) {
 		cout << "edge " << x << " weight " << graph_of_edges->edges[x]->ending_node << endl;
 	}*/
-}
+}//lakshi's code ends here
 
 //Setting up connection from file
 void Initial_forwarding_table(routerData *init_router) {
@@ -347,65 +347,6 @@ void Reading_in_forwardingtable(char table[]) {
 	}
 }
 
-void BellmanFord(struct graph* g, int src)    
-{
-	//std::cout<<"\nhello\n";
-    int V = g->total_number_of_vertices;
-    int E = g->total_edges;
-    char node[V];
-	int shortestdist[V];
-	char nextnode[V];
-	std::cout<<V;
-    // Step 1: Initialize distances from src to all other vertices
-    // as INFINITE
-	//std::cout<<"\nhello\n"; 
-   for (int i = 0; i < V; i++)
-    {
-        node[i] = (char) (i+65);
-        shortestdist[i] = 10000;
-        nextnode[i] = -1;
-    }
-    
-    //Assuming A is first vertex and so on...
-    shortestdist[src%65] = 0;
-	//std::cout<<"\nhello\n";
-    // Step 2: Relax all edges |V| - 1 times.
-    for (int i = 1; i <= V-1; i++)
-    {
-        for (int j = 0; j < E; j++)
-        {
-            int u = g->edges[j]->start.at(0);
-//std::cout<<u<<"\n";
-            int v = g->edges[j]->end.at(0);
-            int weight = g->edges[j]->weight;
-            //if (dist[u-65] != 10000 && dist[u-65] + weight < dist[v-65])
-            //    dist[v-65] = dist[u-65] + weight;
-            if(shortestdist[u%65] != 10000 && shortestdist[u%65] + weight < shortestdist[v%65]) {
-                shortestdist[v%65] = shortestdist[u%65] + weight;
-                nextnode[v%65] =(char)node[u%65];
-		//std::cout<<nextnode[v%65]<<"\n";
-            }
-        }
-    }
-	//std::cout<<"\nhello\n"; 
-	int i=0;
-	Neighbour *temp;
-	temp = router1.head;
-	while (temp != NULL) {
-		temp->via_port_name.at(0)=nextnode[temp->port_name.at(0)%65];
-		temp->total_dist=shortestdist[temp->port_name.at(0)%65];
-		temp->via_port=(nextnode[temp->port_name.at(0)%65]%65)+10000;
-		std::cout<<"\nto get to node "<<temp->port_name.at(0)<<" go through "<<temp->via_port_name.at(0)<<" in "<<temp->total_dist<<"\n";
-		temp = temp->next_node;
-	}
-	//std::cout<<"\nhello\n";
-	temp = router1.head;
-	//std::cout<<"to get to node"<<temp->port_name.at(0)<<"go through "<<temp->via_port_name.at(0)<<" in "<<temp->total_dist;
-    std::cout<<"\nRouting table regenerated.\n";
-    std::cout<<"\n----------------------------------------------------------------------------------\n";
-   
-    return;
-}
 
 
 
