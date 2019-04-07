@@ -261,6 +261,8 @@ void print_neighbours(routerData print_router) {
 	long current_time = std::time(0);
 
 	long time_delay = current_time - Starting_time;
+
+	/*
 	string filename = router1.src + "_Routing table changes.txt";
 
 	ofstream outfile(filename, std::ios::app);
@@ -279,10 +281,11 @@ void print_neighbours(routerData print_router) {
 	}
 
 	outfile.close();
-
-	/*
+	*/
+	///*
 
 	cout << endl;
+	cout << setw(15) << left << "Timestamp: " << time_delay << "secs" << endl;
 	cout << setw(15) << left << "Destination";
 	cout << setw(5) << left << "Cost";
 	cout << setw(20) << left << "Outgoing UDP Port";
@@ -303,7 +306,8 @@ void print_neighbours(routerData print_router) {
 	for (int j = 0; j < E; j++)
 	{
 		cout << graph_of_edges->edges[j]->start << " " << graph_of_edges->edges[j]->end << " " << graph_of_edges->edges[j]->weight << endl;
-	}*/
+	}
+	//*/
 }
 
 void BellmanFord(struct graph* g, int src)
@@ -473,8 +477,6 @@ void BellmanFord(struct graph* g, int src)
 		//cout << "No changes made " << endl;
 	}
 	else {
-
-
 		print_neighbours(router1);
 	}
 
@@ -585,7 +587,7 @@ void Is_alive(string router_name) {
 		if (temp->port_name == router_name && temp->direct_neighbours == true) {
 			temp->last_update = std::time(0);
 			temp->alive = true;
-			//cout << temp->port_name << " updated\n";
+			cout << temp->port_name << " updated\n";
 		}
 		temp = temp->next_node;
 	}
@@ -873,7 +875,7 @@ void Is_router_dead() {
 	for (;;) {
 
 		//Very rudimnetal timer to check if nodes are asleep every 1 second
-		sleep_for(seconds(1));
+		sleep_for(milliseconds(100));
 
 		//Current time ot check against last update time
 		long current_time = std::time(0);
@@ -936,7 +938,7 @@ void Stabilize_network(int routerSock) {
 
 			while (temp != NULL) {
 				//Dont send DV to routers that are presumed dead
-				if (temp->alive == true) {
+				if (temp->alive == true && temp->direct_neighbours) {
 					//Setting next port
 					int temp_port = temp->port;
 
@@ -1064,7 +1066,7 @@ int main(int argc, const char* argv[]) {
 	std::thread Is_router_dead_thread = thread(Is_router_dead);
 	Is_router_dead_thread.detach();
 
-	cout << "Enters loop" << endl;
+	cout << "\nEnters listnening loop" << endl;
 
 	//Infinite loop that listens and if it receives a DV or message will make a new thread
 	for (;;) {
