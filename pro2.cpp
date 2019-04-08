@@ -292,10 +292,12 @@ void print_neighbours(routerData print_router) {
 	cout << setw(20) << left << "Destination UDP port" << endl;
 
 	for (Neighbour *pointer = print_router.head; pointer != NULL; pointer = pointer->next_node) {
-		cout << setw(15) << left << pointer->port_name;
-		cout << setw(5) << left << pointer->total_dist;
-		cout << left << pointer->via_port << " (Node " << pointer->via_port_name << ")" << setw(6) << " ";
-		cout << left << pointer->port << left << " (Node " << pointer->port_name << ")" << endl;
+		if (pointer->total_dist < 998) {
+			cout << setw(15) << left << pointer->port_name;
+			cout << setw(5) << left << pointer->total_dist;
+			cout << left << pointer->via_port << " (Node " << pointer->via_port_name << ")" << setw(6) << " ";
+			cout << left << pointer->port << left << " (Node " << pointer->port_name << ")" << endl;
+		}
 	}
 
 	cout << "\n\n" << endl;
@@ -531,7 +533,6 @@ void Add_destination(string port_name, string hop_distance, string source) {
 
 		while (temp->next_node != NULL) {
 			if (temp->port_name == port_name) {
-				//cout << "here1\n";
 				found = true;
 			}
 			else if (temp->port_name == source) {
@@ -587,7 +588,7 @@ void Is_alive(string router_name) {
 		if (temp->port_name == router_name && temp->direct_neighbours == true) {
 			temp->last_update = std::time(0);
 			temp->alive = true;
-			cout << temp->port_name << " updated\n";
+			//cout << temp->port_name << " updated\n";
 		}
 		temp = temp->next_node;
 	}
@@ -740,7 +741,7 @@ void read_via_only(char buf[]) {
 
 		//cout << "Path: " << path << endl;
 
-
+		
 		if (router1.src == destn) {
 			cout << "Message reecieved from port " << port << endl;
 		}
@@ -752,32 +753,37 @@ void read_via_only(char buf[]) {
 				//Finds a valid destintation
 				if (destn == pointer->port_name && destn != router1.src) {
 
-					int sending_port = pointer->via_port;
-					string sender = send_via_only(sendBuf, 2, pointer->port_name, path);
+					if (pointer->total_dist < 998) {
+						int sending_port = pointer->via_port;
+						string sender = send_via_only(sendBuf, 2, pointer->port_name, path);
 
-					//Send to next router
-					struct sockaddr_storage senderAddr;
-					char sendBuf[256], recvBuf[256];
-					int recvLen;
+						//Send to next router
+						struct sockaddr_storage senderAddr;
+						char sendBuf[256], recvBuf[256];
+						int recvLen;
 
-					int sendSock = socket(AF_INET, SOCK_DGRAM, 0);
+						int sendSock = socket(AF_INET, SOCK_DGRAM, 0);
 
-					//Creates a temporary socket to send packets to
-					sockaddr_in addrSend = {};    //zero-int, sin_port is 0 which picks a random port for bind
-					addrSend.sin_family = AF_INET;
-					addrSend.sin_port = htons(sending_port);
-					addrSend.sin_addr.s_addr = inet_addr("127.0.0.1");
+						//Creates a temporary socket to send packets to
+						sockaddr_in addrSend = {};    //zero-int, sin_port is 0 which picks a random port for bind
+						addrSend.sin_family = AF_INET;
+						addrSend.sin_port = htons(sending_port);
+						addrSend.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-					//Binding temp socket
-					bind(sendSock, (struct sockaddr *) &addrSend, sizeof(addrSend));     //Not checking failure for now..
+						//Binding temp socket
+						bind(sendSock, (struct sockaddr *) &addrSend, sizeof(addrSend));     //Not checking failure for now..
 
-					//Turning the DV into a char array to be sent to neightbours
-					char *sending_array = new char[sender.length() + 1];
-					strcpy(sending_array, sender.c_str());
+						//Turning the DV into a char array to be sent to neightbours
+						char *sending_array = new char[sender.length() + 1];
+						strcpy(sending_array, sender.c_str());
 
-					if ((numBytes = (sendto(sendSock, sending_array, 100, 0, (struct sockaddr *) &addrSend, 100))) == -1) {
-						std::cout << "\n\t\tSender: Couldn't send. :(";
-						//  return;
+						if ((numBytes = (sendto(sendSock, sending_array, 100, 0, (struct sockaddr *) &addrSend, 100))) == -1) {
+							std::cout << "\n\t\tSender: Couldn't send. :(";
+							//  return;
+						}
+					}
+					else {
+						cout << "Error invalid destination\n";
 					}
 				}
 
