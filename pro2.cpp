@@ -39,7 +39,6 @@ string send_via_only(char buf[], int type, string destn, string path_taken);
 
 #define routers_num 8
 
-//void *router_connection(void *threadID);
 static int clientSockfd;
 int numBytes;
 
@@ -262,7 +261,6 @@ void print_neighbours(routerData print_router) {
 
 	long time_delay = current_time - Starting_time;
 
-	/*
 	string filename = router1.src + "_Routing table changes.txt";
 
 	ofstream outfile(filename, std::ios::app);
@@ -281,8 +279,8 @@ void print_neighbours(routerData print_router) {
 	}
 
 	outfile.close();
-	*/
-	///*
+	
+	
 
 	cout << endl;
 	cout << setw(15) << left << "Timestamp: " << time_delay << "secs" << endl;
@@ -296,10 +294,11 @@ void print_neighbours(routerData print_router) {
 			cout << setw(15) << left << pointer->port_name;
 			cout << setw(5) << left << pointer->total_dist;
 			cout << left << pointer->via_port << " (Node " << pointer->via_port_name << ")" << setw(6) << " ";
-			cout << left << pointer->port << left << " (Node " << pointer->port_name << ")" << endl;
+			cout << left << " (Node " << pointer->port_name << ")" << endl;
 		}
 	}
 
+	/*
 	cout << "\n\n" << endl;
 	cout << "Edges" << endl;
 
@@ -309,7 +308,7 @@ void print_neighbours(routerData print_router) {
 	{
 		cout << graph_of_edges->edges[j]->start << " " << graph_of_edges->edges[j]->end << " " << graph_of_edges->edges[j]->weight << endl;
 	}
-	//*/
+	*/
 }
 
 void BellmanFord(struct graph* g, int src)
@@ -742,20 +741,41 @@ void read_via_only(char buf[]) {
 		//cout << "Path: " << path << endl;
 
 		
+		long current_time = std::time(0);
+
+		long time_delay = current_time - Starting_time;
+
+		string filename = router1.src + "_Routing table changes.txt";
+
+		ofstream outfile(filename, std::ios::app);
+
+		char sendBuf[] = "hello";
 		if (router1.src == destn) {
 			cout << "Message reecieved from port " << port << endl;
+			string sender = send_via_only(sendBuf, 2, router1.src, path);
+			cout << sender << endl;
+
+			outfile << endl;
+			outfile << "Message received at final location" << endl;
+			outfile << sender << endl;
+			outfile << endl;
+			outfile.close();
 		}
 		else {
 			for (Neighbour *pointer = router1.head; pointer != NULL; pointer = pointer->next_node) {
-
-				char sendBuf[] = "hello";
-
 				//Finds a valid destintation
 				if (destn == pointer->port_name && destn != router1.src) {
-
 					if (pointer->total_dist < 998) {
 						int sending_port = pointer->via_port;
 						string sender = send_via_only(sendBuf, 2, pointer->port_name, path);
+
+						cout << sender << endl;
+
+						outfile << endl;
+						outfile << "Message being routed" << endl;
+						outfile << sender << endl;
+						outfile << endl;
+						outfile.close();
 
 						//Send to next router
 						struct sockaddr_storage senderAddr;
@@ -781,17 +801,18 @@ void read_via_only(char buf[]) {
 							std::cout << "\n\t\tSender: Couldn't send. :(";
 							//  return;
 						}
+						outfile.close();
 					}
 					else {
 						cout << "Error invalid destination\n";
 					}
 				}
-
 			}
 		}
 	}
 	else {
 		cout << "Bad message received\n";
+
 		return;
 	}
 }
@@ -843,7 +864,7 @@ string send_via_only(char buf[], int type, string destn, string path_taken) {
 
 			//for dv
 			string dv = string(buf);
-			message << "DV: ";
+			message << "MSG: ";
 			message << dv;
 			message << "\r\n\r\n";
 		}
@@ -1044,6 +1065,8 @@ int main(int argc, const char* argv[]) {
 		std::cerr << "\n\tConnection: Router binding failed. Killing thread...";
 		exit(1);
 	}
+
+	sleep_for(seconds(3));
 
 	//Setting up text file
 	string filename = router1.src + "_Routing table changes.txt";
